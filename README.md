@@ -87,3 +87,21 @@ V1 明确不包含：
 - 向量库、检索服务、工作流编排平台等复杂 RAG 基础设施
 
 如果未来要扩展，也应先保证当前这套 `raw/ + wiki/` 结构仍然成立。
+
+
+## Lint
+
+Run the minimal knowledge-base lint with:
+
+```bash
+python3 scripts/lint/check_kb.py
+```
+
+Current checks:
+
+- broken relative Markdown links
+- missing page entries in `wiki/index.md`
+- malformed `wiki/sources/` pages, including thin basic-info fields, missing raw path links, missing summary paragraphs, or too-few key points
+- missing required repo files such as `README.md`, `AGENTS.md`, `wiki/index.md`, `wiki/log.md`, and `wiki/overview.md`
+
+Run this lint before each Git commit that changes `wiki/` or repository structure.
