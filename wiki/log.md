@@ -13,3 +13,14 @@
 - 新建 1 个项目页、2 个主题页、2 个概念页、1 个方法页、1 个决策页。
 - 更新 `wiki/index.md`，补充本次 ingest 的稳定入口。
 - 本次 ingest 未发现来源之间的直接冲突。
+
+## 2026-04-23
+
+### Ingest 002
+
+- 向 `raw/inbox/` 新增 1 份真实学习笔记原件，主题为“持久化中间层、持久 wiki 与知识库工作模式”。
+- 新建 1 个 `wiki/sources/` 来源页，记录标题、来源类型、日期、原始路径、摘要、关键点和关联页面。
+- 更新 `wiki/projects/personal-knowledge-base-v1.md`，补充“wiki 作为持久化中间层”的项目级判断。
+- 更新 `wiki/topics/llm-context-engineering.md`，补充持久 wiki、`index.md` 与 `log.md` 在长期上下文工程中的作用。
+- 更新 `wiki/index.md`，补充本次真实材料入口。
+- 本次 ingest 为最小非自动化验证，未扩展更多页面。

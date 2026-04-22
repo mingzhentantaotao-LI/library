@@ -16,6 +16,7 @@
 
 - 新材料先进入 `raw/inbox/`。
 - 每次 ingest 先建立 `wiki/sources/` 来源页。
+- `wiki/` 更适合作为持久化中间层：新资料进入后优先更新已有页面、补充回链和记录矛盾，而不是每次 query 从零重新拼装。
 - 只把足够稳定的内容提升到 `topics/`、`concepts/`、`methods/`、`decisions/`。
 - `wiki/index.md` 保留稳定入口，`wiki/log.md` 采用追加写。
 
@@ -30,3 +31,4 @@
 - [来源：个人知识库 V1 周记（样本）](../sources/2026-04-22-sample-work-agent-kb-weekly-note.md)
 - [来源：长周期助手的上下文工程学习笔记（样本）](../sources/2026-04-20-sample-study-context-engineering-notes.md)
 - [来源：渐进式摘要法收藏摘录（样本）](../sources/2026-04-18-sample-clip-progressive-summarization.md)
+- [来源：持久化中间层与持久 wiki 学习笔记](../sources/2026-04-23-study-persistent-wiki-middle-layer-notes.md)
