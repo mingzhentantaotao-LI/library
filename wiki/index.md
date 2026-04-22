@@ -1,51 +1,54 @@
-# 知识库索引
+# ?????
 
-## 入口
+## ??
 
-- [概览](overview.md)
-- [变更日志](log.md)
+- [??](overview.md)
+- [????](log.md)
 
-## 知识分区
+## ????
 
-- 项目：[`projects/`](projects/)
-- 主题：[`topics/`](topics/)
-- 概念：[`concepts/`](concepts/)
-- 方法：[`methods/`](methods/)
-- 决策：[`decisions/`](decisions/)
-- 来源：[`sources/`](sources/)
-- 评审：[`reviews/`](reviews/)
+- ???[`projects/`](projects/)
+- ???[`topics/`](topics/)
+- ???[`concepts/`](concepts/)
+- ???[`methods/`](methods/)
+- ???[`decisions/`](decisions/)
+- ???[`sources/`](sources/)
+- ???[`reviews/`](reviews/)
 
-## 当前状态
+## ????
 
-- V1 已初始化目录结构。
-- 后续新增知识时，需要同步更新本页入口。
+- V1 ???????????????? ingest?
+- ????? lint????????Markdown ????? `wiki/index.md` ?????
+- ??????????? ingest??????????????????
 
-## 当前条目
+## ????
 
-### 项目
+### ??
 
 - [Personal Knowledge Base V1](projects/personal-knowledge-base-v1.md)
 
-### 主题
+### ??
 
-- [个人知识库维护](topics/personal-knowledge-base-maintenance.md)
-- [LLM 上下文工程](topics/llm-context-engineering.md)
+- [???????](topics/personal-knowledge-base-maintenance.md)
+- [LLM ?????](topics/llm-context-engineering.md)
 
-### 概念
+### ??
 
-- [上下文预算](concepts/context-budget.md)
-- [渐进式摘要法](concepts/progressive-summarization.md)
+- [?????](concepts/context-budget.md)
+- [??????](concepts/progressive-summarization.md)
+- [??????????](concepts/discoverability-vs-context.md)
 
-### 方法
+### ??
 
-- [Inbox 到 Wiki 的 Ingest](methods/inbox-to-wiki-ingest.md)
+- [Inbox ? Wiki ? Ingest](methods/inbox-to-wiki-ingest.md)
 
-### 决策
+### ??
 
-- [Decision 001：V1 保持 Markdown-only](decisions/decision-001-v1-markdown-only.md)
+- [Decision 001?V1 ?? Markdown-only](decisions/decision-001-v1-markdown-only.md)
 
-### 来源
+### ??
 
-- [来源：个人知识库 V1 周记（样本）](sources/2026-04-22-sample-work-agent-kb-weekly-note.md)
-- [来源：长周期助手的上下文工程学习笔记（样本）](sources/2026-04-20-sample-study-context-engineering-notes.md)
-- [来源：渐进式摘要法收藏摘录（样本）](sources/2026-04-18-sample-clip-progressive-summarization.md)
+- [???????? V1 ??????](sources/2026-04-22-sample-work-agent-kb-weekly-note.md)
+- [??????????????????????](sources/2026-04-20-sample-study-context-engineering-notes.md)
+- [?????????????????](sources/2026-04-18-sample-clip-progressive-summarization.md)
+- [???Tiago Forte ????????](sources/2026-04-22-tiago-forte-progressive-summarization.md)
