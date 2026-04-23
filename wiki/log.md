@@ -33,3 +33,10 @@
 - 更新 `wiki/topics/llm-context-engineering.md`，补充上下文组成、MCP 角色与 agent workflow 的稳定结论。
 - 更新 `wiki/index.md`，补充本次真实材料入口并把真实材料验证数更新为 2。
 - 本次 ingest 继续保持最小范围，未扩展 concept / method / decision 页面。
+
+### Review 001
+
+- 补充 V1 reviews 规则，明确 review 的触发时机、最小检查清单、输出形式与回写原则。
+- 新建 `wiki/reviews/review-template.md`，作为手动 review 的最小模板。
+- 更新 `wiki/index.md`，补充 review 模板入口。
+- 本次仅设计规则，不实现脚本或自动任务。

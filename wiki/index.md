@@ -19,6 +19,7 @@
 
 - V1 已初始化目录结构。
 - 已完成 2 份真实材料的最小非自动化 ingest 验证。
+- 已补充 V1 reviews 规则与最小 review 模板。
 - 后续新增知识时，需要同步更新本页入口。
 
 ## 当前条目
@@ -52,3 +53,7 @@
 - [来源：渐进式摘要法收藏摘录（样本）](sources/2026-04-18-sample-clip-progressive-summarization.md)
 - [来源：持久化中间层与持久 wiki 学习笔记](sources/2026-04-23-study-persistent-wiki-middle-layer-notes.md)
 - [来源：AI 应用体系、Agent、MCP 与 Codex 学习笔记](sources/2026-04-23-study-ai-agent-mcp-codex-notes.md)
+
+### 评审
+
+- [Review 模板：V1 轻量复查](reviews/review-template.md)
