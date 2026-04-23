@@ -12,6 +12,9 @@
 - `wiki/index.md` 应保留稳定入口，不堆积临时链接。
 - `wiki/log.md` 应采用追加写，记录每次 ingest 或结构变更。
 - 处理优先级应倾向未来可能被重复使用的材料。
+- 当材料同时涉及项目进展、维护机制和后续规则判断时，优先挂到最直接讨论维护机制与页面落点的已有页，而不是分散写入多个主题页。
+- 对当前项目而言，跨主题工作材料优先挂到“个人知识库维护”，因为它更直接承接规则稳定性、落点判断和维护压力，而不是某个更窄的技术主题。
+- 在更多真实工作材料进入之前，最需要继续细化的是“已有页面选择优先级”，而不是新增更多 durable page 类型。
 
 ## 关联方法
 
@@ -30,3 +33,4 @@
 - [来源：个人知识库 V1 周记（样本）](../sources/2026-04-22-sample-work-agent-kb-weekly-note.md)
 - [来源：长周期助手的上下文工程学习笔记（样本）](../sources/2026-04-20-sample-study-context-engineering-notes.md)
 - [来源：渐进式摘要法收藏摘录（样本）](../sources/2026-04-18-sample-clip-progressive-summarization.md)
+- [来源：个人知识库项目 V1 周复盘](../sources/2026-04-23-work-personal-knowledge-base-v1-weekly-review.md)

@@ -40,3 +40,12 @@
 - 新建 `wiki/reviews/review-template.md`，作为手动 review 的最小模板。
 - 更新 `wiki/index.md`，补充 review 模板入口。
 - 本次仅设计规则，不实现脚本或自动任务。
+
+### Ingest 004
+
+- 向 `raw/inbox/` 新增 1 份真实工作复盘原件，主题为“personal-knowledge-base-v1 本周阶段判断、风险与下周计划”。
+- 新建 1 个 `wiki/sources/` 来源页，记录标题、来源类型、日期、原始路径、摘要、关键点和关联页面。
+- 更新 `wiki/projects/personal-knowledge-base-v1.md`，补充 project page 在承接项目级判断、风险与下周计划上的作用。
+- 更新 `wiki/topics/personal-knowledge-base-maintenance.md`，补充跨主题工作材料优先挂靠维护主题的理由，而不是分散写入多个已有页。
+- 更新 `wiki/index.md`，补充本次工作材料入口并把真实材料验证数更新为 3。
+- 本次 ingest 继续保持最小范围，未扩展 method / decision / concept 页面。
