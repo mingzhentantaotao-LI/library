@@ -27,6 +27,7 @@
 - `raw/study/`: 学习笔记、课程、教材等原始资料归档区。
 - `raw/clips/`: 收藏文章、网页摘录、零散材料的原始归档区。
 - `raw/assets/`: 原始图片、附件、截图、PDF 等素材。
+- `raw/templates/`: 工作材料捕获模板，用于后续人工生成真实材料；模板本身不是待 ingest 的来源。
 
 ### `wiki/`
 
@@ -166,6 +167,7 @@ V1 的 review 只做轻量规则复查与结构判断，不做自动评分，也
 - 文件名建议采用：`YYYY-MM-DD-review-<scope>.md`
 - scope 可以是 `weekly-maintenance`、`ingest-check`、`topic-alignment` 这类简短语义。
 - review 输出应以“发现 + 建议动作”为主，不做复杂分数、等级或图表。
+- 默认使用 `wiki/reviews/review-template.md` 作为起点，再按本次 review 范围做最小修改。
 
 ### 是否回写 wiki
 

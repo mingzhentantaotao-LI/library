@@ -41,6 +41,13 @@
 - 更新 `wiki/index.md`，补充 review 模板入口。
 - 本次仅设计规则，不实现脚本或自动任务。
 
+### Templates 001
+
+- 在 `raw/templates/` 下新增工作周记、项目复盘、需求方案草稿 3 份材料捕获模板。
+- 在 `AGENTS.md` 中补充 `raw/templates/` 的目录职责，并说明 review 默认从 `wiki/reviews/review-template.md` 起步。
+- 在 `README.md` 中补充 `raw/templates/` 的最小使用说明。
+- 本次仅补模板与规则说明，不实现自动化或新增系统功能。
+
 ### Ingest 004
 
 - 向 `raw/inbox/` 新增 1 份真实工作复盘原件，主题为“personal-knowledge-base-v1 本周阶段判断、风险与下周计划”。
