@@ -72,6 +72,9 @@ personal-knowledge-base/
 4. 更新 `wiki/index.md`，让新知识能被导航到。
 5. 在 `wiki/log.md` 追加本次处理记录。
 
+- 默认一轮 ingest 先建立对应 `wiki/sources/` 来源页，再最多更新 1 个项目页和 1 个其他知识页。
+- `wiki/sources/` 默认与 `raw/inbox/` 原文件保持同名映射，只把扩展名改成 `.md`。
+
 ## V1 边界
 
 这个版本只服务于稳定、低维护成本的个人知识整理：
