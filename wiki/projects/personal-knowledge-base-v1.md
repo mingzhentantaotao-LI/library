@@ -17,6 +17,7 @@
 - 新材料先进入 `raw/inbox/`。
 - 每次 ingest 先建立 `wiki/sources/` 来源页。
 - `wiki/` 更适合作为持久化中间层：新资料进入后优先更新已有页面、补充回链和记录矛盾，而不是每次 query 从零重新拼装。
+- 在更完整的 agent 工作流里，模型负责推理，外部工具和 MCP 负责连接外部世界，而 `wiki/` 承接稳定知识与结构化上下文。
 - 只把足够稳定的内容提升到 `topics/`、`concepts/`、`methods/`、`decisions/`。
 - `wiki/index.md` 保留稳定入口，`wiki/log.md` 采用追加写。
 
@@ -32,3 +33,4 @@
 - [来源：长周期助手的上下文工程学习笔记（样本）](../sources/2026-04-20-sample-study-context-engineering-notes.md)
 - [来源：渐进式摘要法收藏摘录（样本）](../sources/2026-04-18-sample-clip-progressive-summarization.md)
 - [来源：持久化中间层与持久 wiki 学习笔记](../sources/2026-04-23-study-persistent-wiki-middle-layer-notes.md)
+- [来源：AI 应用体系、Agent、MCP 与 Codex 学习笔记](../sources/2026-04-23-study-ai-agent-mcp-codex-notes.md)
