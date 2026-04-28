@@ -92,6 +92,12 @@ V1 明确不包含：
 
 如果未来要扩展，也应先保证当前这套 `raw/ + wiki/` 结构仍然成立。
 
+## 新会话接续
+
+如果新的 project、新会话或新的维护者需要接手，请先阅读 [`PROJECT_HANDOFF.md`](PROJECT_HANDOFF.md)，再继续阅读 `AGENTS.md`、`wiki/index.md` 和 `wiki/log.md`。
+
+`PROJECT_HANDOFF.md` 只保存当前阶段上下文；正式维护规则仍以 `AGENTS.md` 为准。
+
 
 ## Lint
 

@@ -56,3 +56,10 @@
 - 更新 `wiki/topics/personal-knowledge-base-maintenance.md`，补充跨主题工作材料优先挂靠维护主题的理由，而不是分散写入多个已有页。
 - 更新 `wiki/index.md`，补充本次工作材料入口并把真实材料验证数更新为 3。
 - 本次 ingest 继续保持最小范围，未扩展 method / decision / concept 页面。
+
+## Handoff 001 - 2026-04-28
+
+- 动作类型：上下文整合
+- 新增页面：`PROJECT_HANDOFF.md`
+- 更新页面：`README.md`、`AGENTS.md`
+- 说明：为新会话或新 project 提供压缩交接上下文；正式维护规则仍以 `AGENTS.md` 为准。

@@ -16,6 +16,12 @@
 - 优先保证可读性、可追溯性和增量维护成本低。
 - 不做前端，不做数据库，不做复杂 RAG 平台。
 
+## 新会话启动规则
+
+当新的会话、project 或维护者接手本仓库时，先阅读 `PROJECT_HANDOFF.md` 获取当前阶段上下文，再阅读 `AGENTS.md`、`README.md`、`wiki/index.md` 和 `wiki/log.md`。
+
+`PROJECT_HANDOFF.md` 只用于交接上下文，不覆盖本文件中的长期维护规则。
+
 ## 目录职责
 
 ### `raw/`
