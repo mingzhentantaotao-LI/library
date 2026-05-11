@@ -45,6 +45,7 @@
 ### 决策
 
 - [Decision 001：V1 保持 Markdown-only](decisions/decision-001-v1-markdown-only.md)
+- [Decision 002：先做薄前端，继续文件系统优先](decisions/decision-002-thin-web-filesystem-first.md)
 
 ### 来源
 

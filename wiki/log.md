@@ -63,3 +63,11 @@
 - 新增页面：`PROJECT_HANDOFF.md`
 - 更新页面：`README.md`、`AGENTS.md`
 - 说明：为新会话或新 project 提供压缩交接上下文；正式维护规则仍以 `AGENTS.md` 为准。
+
+## Web 001 - 2026-04-28
+
+- 动作类型：方向调整与薄前端实现
+- 新增页面：`wiki/decisions/decision-002-thin-web-filesystem-first.md`
+- 新增代码：`web/server.py`、`web/static/index.html`、`web/static/styles.css`、`web/static/app.js`
+- 更新页面：`README.md`、`AGENTS.md`、`PROJECT_HANDOFF.md`、`wiki/index.md`
+- 说明：根据用户方向调整，先实现文件系统优先的简单网页，支持查询、上传、预览、回收站删除和 AI 文件管理建议；数据库继续延后。

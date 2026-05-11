@@ -1,0 +1,21 @@
+[Unit]
+Description=Personal Knowledge Base Web UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/personal-knowledge-base
+Environment=KB_HOST=0.0.0.0
+Environment=KB_PORT=80
+ExecStart=/usr/bin/python3 web/server.py
+Restart=always
+RestartSec=3
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

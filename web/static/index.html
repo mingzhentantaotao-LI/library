@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Knowledge Base Console</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <p class="eyebrow">Personal Knowledge Base</p>
+          <h1>知识库工作台</h1>
+          <p id="health" class="status-line">正在连接知识库服务...</p>
+        </div>
+        <div class="toolbar" aria-label="全局操作">
+          <button id="rebuildIndexBtn" class="secondary-button" type="button">重建索引</button>
+          <button id="refreshBtn" class="icon-button" type="button" title="刷新" aria-label="刷新">
+            <span aria-hidden="true">R</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="hero panel">
+          <div class="hero-copy">
+            <p class="eyebrow">Filesystem First, SQLite Indexed</p>
+            <h2>原始文件仍然是事实来源，索引层只负责加速浏览、检索和统计。</h2>
+            <p>
+              现在这套 WebUI 已经不是单纯的文件列表了。它会展示目录规模、最近更新、索引状态，并保留上传、
+              预览、AI 建议这些日常维护动作。
+            </p>
+          </div>
+          <div class="hero-actions">
+            <button id="heroRebuildBtn" class="primary-button" type="button">立即重建索引</button>
+            <button id="heroRefreshBtn" class="secondary-button" type="button">刷新概览</button>
+          </div>
+        </section>
+
+        <section class="stats-grid" aria-label="概览统计">
+          <article class="stat-card">
+            <span>总文件数</span>
+            <strong id="statTotalFiles">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>文本文件</span>
+            <strong id="statTextFiles">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Raw 文件</span>
+            <strong id="statRawFiles">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Wiki 文件</span>
+            <strong id="statWikiFiles">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>索引文件数</span>
+            <strong id="statIndexedFiles">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>总容量</span>
+            <strong id="statTotalBytes">0 B</strong>
+          </article>
+        </section>
+
+        <section class="main-grid">
+          <section class="panel control-panel" aria-label="文件查询和上传">
+            <div class="panel-head">
+              <div>
+                <h2>文件操作</h2>
+                <p>继续用文件系统管理知识库，但现在有了索引辅助。</p>
+              </div>
+            </div>
+
+            <form id="searchForm" class="search-row">
+              <label class="field grow">
+                <span>查询</span>
+                <input id="queryInput" name="q" type="search" placeholder="路径、标题、正文关键词" autocomplete="off" />
+              </label>
+              <label class="field narrow">
+                <span>范围</span>
+                <select id="scopeInput" name="scope">
+                  <option value="all">全部</option>
+                  <option value="inbox">Inbox</option>
+                  <option value="raw">Raw</option>
+                  <option value="wiki">Wiki</option>
+                </select>
+              </label>
+              <button type="submit" class="primary-button">查询</button>
+            </form>
+
+            <form id="uploadForm" class="upload-row">
+              <label class="field grow">
+                <span>上传文件</span>
+                <input id="fileInput" name="file" type="file" />
+              </label>
+              <label class="field narrow">
+                <span>目标</span>
+                <select id="targetInput" name="target_dir">
+                  <option value="raw/inbox">raw/inbox</option>
+                  <option value="raw/work">raw/work</option>
+                  <option value="raw/study">raw/study</option>
+                  <option value="raw/clips">raw/clips</option>
+                  <option value="raw/assets">raw/assets</option>
+                </select>
+              </label>
+              <button type="submit" class="secondary-button">上传</button>
+            </form>
+
+            <div class="index-status-card">
+              <div class="index-head">
+                <div>
+                  <h3>索引状态</h3>
+                  <p id="indexDbPath">等待索引数据库信息...</p>
+                </div>
+                <span id="indexStatePill" class="status-pill">未就绪</span>
+              </div>
+              <div class="index-meta">
+                <div>
+                  <span>上次同步</span>
+                  <strong id="indexLastIndexed">-</strong>
+                </div>
+                <div>
+                  <span>上次重建</span>
+                  <strong id="indexLastRebuild">-</strong>
+                </div>
+                <div>
+                  <span>最近摘要</span>
+                  <strong id="indexLastSummary">-</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="results-shell panel" aria-label="文件结果">
+            <div class="results-header">
+              <div>
+                <h2>文件列表</h2>
+                <p>默认使用索引返回元数据，搜索时会回读源文件以展示精确匹配片段。</p>
+              </div>
+              <span id="resultCount">0 项</span>
+            </div>
+            <div id="results" class="results"></div>
+          </section>
+
+          <aside class="right-column">
+            <section class="panel side-panel" aria-label="目录概览">
+              <div class="section-title">
+                <h2>目录分布</h2>
+                <span>按文件数排序</span>
+              </div>
+              <div id="areas" class="list-block compact-list"></div>
+            </section>
+
+            <section class="panel side-panel" aria-label="格式分布">
+              <div class="section-title">
+                <h2>格式分布</h2>
+                <span>Top 扩展名</span>
+              </div>
+              <div id="suffixes" class="list-block compact-list"></div>
+            </section>
+
+            <section class="panel side-panel" aria-label="最近更新">
+              <div class="section-title">
+                <h2>最近更新</h2>
+                <span>最新 8 项</span>
+              </div>
+              <div id="recentFiles" class="list-block"></div>
+            </section>
+
+            <section class="panel detail-panel" aria-label="文件详情">
+              <div class="section-title">
+                <h2>预览</h2>
+                <span id="selectedPath">未选择文件</span>
+              </div>
+              <pre id="preview" class="preview">选择一个文本文件查看内容。</pre>
+            </section>
+
+            <section class="panel ai-panel" aria-label="AI 文件建议">
+              <div class="section-title">
+                <h2>AI 文件建议</h2>
+                <span id="aiProvider">local-rules</span>
+              </div>
+              <div id="aiOutput" class="ai-output">选择文件后可生成分类、来源页和关联页面建议。</div>
+            </section>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

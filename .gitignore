@@ -14,3 +14,8 @@ __pycache__/
 dist/
 build/
 tmp/
+.trash/
+.cache/
+*.sqlite
+*.sqlite3
+*.db

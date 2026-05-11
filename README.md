@@ -115,3 +115,23 @@ Current checks:
 - missing required repo files such as `README.md`, `AGENTS.md`, `wiki/index.md`, `wiki/log.md`, and `wiki/overview.md`
 
 Run this lint before each Git commit that changes `wiki/` or repository structure.
+
+## Thin Web UI
+
+Direction update on 2026-04-28: the project now allows a thin web layer before any database work.
+
+Run the local web UI with:
+
+```bash
+python3 web/server.py
+```
+
+The web UI currently supports:
+
+- query files under `raw/` and `wiki/`
+- preview text-like files
+- upload files into the managed `raw/` intake/archive folders
+- delete files by moving them into `.trash/`
+- generate file-management suggestions through local rules, with an optional `KB_AI_COMMAND` hook for external AI integration
+
+The database is still deferred. The filesystem remains the source of truth.
