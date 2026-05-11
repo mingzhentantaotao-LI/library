@@ -49,12 +49,11 @@
 
 ### 来源
 
-- [来源：个人知识库 V1 周记（样本）](sources/2026-04-22-sample-work-agent-kb-weekly-note.md)
-- [来源：长周期助手的上下文工程学习笔记（样本）](sources/2026-04-20-sample-study-context-engineering-notes.md)
-- [来源：渐进式摘要法收藏摘录（样本）](sources/2026-04-18-sample-clip-progressive-summarization.md)
 - [来源：持久化中间层与持久 wiki 学习笔记](sources/2026-04-23-study-persistent-wiki-middle-layer-notes.md)
 - [来源：AI 应用体系、Agent、MCP 与 Codex 学习笔记](sources/2026-04-23-study-ai-agent-mcp-codex-notes.md)
 - [来源：个人知识库项目 V1 周复盘](sources/2026-04-23-work-personal-knowledge-base-v1-weekly-review.md)
+
+样例来源已归档到 [examples/sources/](examples/sources/)，不再计入活跃知识库来源。
 
 ### 评审
 

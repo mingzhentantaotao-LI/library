@@ -118,7 +118,7 @@ Run this lint before each Git commit that changes `wiki/` or repository structur
 
 ## Thin Web UI
 
-Direction update on 2026-04-28: the project now allows a thin web layer before any database work.
+Direction update on 2026-05-11: the project has a thin Web UI, login protection, and a rebuildable SQLite index. The filesystem remains the source of truth; SQLite is only a cache/index.
 
 Run the local web UI with:
 
@@ -132,6 +132,8 @@ The web UI currently supports:
 - preview text-like files
 - upload files into the managed `raw/` intake/archive folders
 - delete files by moving them into `.trash/`
-- generate file-management suggestions through local rules, with an optional `KB_AI_COMMAND` hook for external AI integration
+- generate file-management suggestions through local rules, an optional `KB_AI_COMMAND`, or an OpenAI-compatible HTTP provider
+- process raw materials into `wiki/sources/` drafts and archive them into `raw/work`, `raw/study`, `raw/clips`, or `raw/assets`
+- protect public API access with session login when `KB_AUTH_PASSWORD` is configured
 
-The database is still deferred. The filesystem remains the source of truth.
+Sample materials have been moved under `raw/examples/` and `wiki/examples/`; these paths are hidden from the active index and dashboard.

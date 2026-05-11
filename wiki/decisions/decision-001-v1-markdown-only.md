@@ -30,4 +30,4 @@
 
 ## 来源
 
-- [来源：个人知识库 V1 周记（样本）](../sources/2026-04-22-sample-work-agent-kb-weekly-note.md)
+初始样例资料已归档到 `wiki/examples/`，当前决策页保留已采纳结论。

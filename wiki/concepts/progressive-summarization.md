@@ -17,4 +17,4 @@
 
 ## 来源
 
-- [来源：渐进式摘要法收藏摘录（样本）](../sources/2026-04-18-sample-clip-progressive-summarization.md)
+初始样例资料已归档到 `wiki/examples/`，当前概念页保留稳定定义。

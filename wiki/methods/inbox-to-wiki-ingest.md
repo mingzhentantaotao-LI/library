@@ -27,6 +27,4 @@
 
 ## 来源
 
-- [来源：个人知识库 V1 周记（样本）](../sources/2026-04-22-sample-work-agent-kb-weekly-note.md)
-- [来源：长周期助手的上下文工程学习笔记（样本）](../sources/2026-04-20-sample-study-context-engineering-notes.md)
-- [来源：渐进式摘要法收藏摘录（样本）](../sources/2026-04-18-sample-clip-progressive-summarization.md)
+初始样例资料已归档到 `wiki/examples/`，当前方法页只保留稳定流程本身。

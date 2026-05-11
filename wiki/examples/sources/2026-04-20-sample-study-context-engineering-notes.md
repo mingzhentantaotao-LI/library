@@ -5,7 +5,7 @@
 - 标题：Study Notes: Context Engineering for Long-Running Assistants
 - 来源类型：学习笔记
 - 日期：2026-04-20
-- 原始路径：[raw/inbox/2026-04-20-sample-study-context-engineering-notes.md](../../raw/inbox/2026-04-20-sample-study-context-engineering-notes.md)
+- 原始路径：[raw/examples/2026-04-20-sample-study-context-engineering-notes.md](../../../raw/examples/2026-04-20-sample-study-context-engineering-notes.md)
 
 ## 简要摘要
 
@@ -21,9 +21,9 @@
 
 ## 关联主题
 
-- [LLM 上下文工程](../topics/llm-context-engineering.md)
-- [个人知识库维护](../topics/personal-knowledge-base-maintenance.md)
+- [LLM 上下文工程](../../topics/llm-context-engineering.md)
+- [个人知识库维护](../../topics/personal-knowledge-base-maintenance.md)
 
 ## 关联项目
 
-- [Personal Knowledge Base V1](../projects/personal-knowledge-base-v1.md)
+- [Personal Knowledge Base V1](../../projects/personal-knowledge-base-v1.md)

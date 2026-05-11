@@ -25,6 +25,5 @@
 
 ## 来源
 
-- [来源：长周期助手的上下文工程学习笔记（样本）](../sources/2026-04-20-sample-study-context-engineering-notes.md)
 - [来源：持久化中间层与持久 wiki 学习笔记](../sources/2026-04-23-study-persistent-wiki-middle-layer-notes.md)
 - [来源：AI 应用体系、Agent、MCP 与 Codex 学习笔记](../sources/2026-04-23-study-ai-agent-mcp-codex-notes.md)

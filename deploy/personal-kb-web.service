@@ -10,6 +10,7 @@ Group=ubuntu
 WorkingDirectory=/home/ubuntu/personal-knowledge-base
 Environment=KB_HOST=0.0.0.0
 Environment=KB_PORT=80
+EnvironmentFile=-/etc/personal-kb-web.env
 ExecStart=/usr/bin/python3 web/server.py
 Restart=always
 RestartSec=3

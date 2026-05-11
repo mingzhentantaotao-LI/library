@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Dependency-free web UI and API for the personal knowledge base.
+"""Dependency-free Web UI and API for the personal knowledge base.
 
-The app stays filesystem-first. A local SQLite database is used only as a
-rebuildable index for metadata, summaries, and dashboard statistics.
+The knowledge base remains filesystem-first. SQLite is a rebuildable index for
+metadata, search acceleration, dashboard statistics, and pipeline status.
 """
 
 from __future__ import annotations
 
-import datetime as dt
 import contextlib
+import datetime as dt
+import hmac
 import json
 import mimetypes
 import os
@@ -16,16 +17,20 @@ import posixpath
 import re
 import shlex
 import shutil
+import secrets
 import sqlite3
 import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from email.parser import BytesParser
 from email.policy import default as email_policy
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -41,8 +46,27 @@ MAX_UPLOAD_BYTES = int(os.environ.get("KB_MAX_UPLOAD_BYTES", str(25 * 1024 * 102
 MAX_PREVIEW_BYTES = int(os.environ.get("KB_MAX_PREVIEW_BYTES", str(300 * 1024)))
 MAX_SEARCH_BYTES = int(os.environ.get("KB_MAX_SEARCH_BYTES", str(800 * 1024)))
 MAX_INDEX_TEXT_BYTES = int(os.environ.get("KB_MAX_INDEX_TEXT_BYTES", str(64 * 1024)))
+
+AUTH_USERNAME = os.environ.get("KB_AUTH_USERNAME", "admin")
+AUTH_PASSWORD = os.environ.get("KB_AUTH_PASSWORD", "").strip()
+AUTH_REQUIRED = os.environ.get("KB_AUTH_REQUIRED", "1" if AUTH_PASSWORD else "0").lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}
+SESSION_COOKIE_NAME = os.environ.get("KB_SESSION_COOKIE", "kb_session")
+SESSION_TTL_SECONDS = int(os.environ.get("KB_SESSION_TTL_SECONDS", str(8 * 60 * 60)))
+SESSION_SECRET = os.environ.get("KB_SESSION_SECRET", secrets.token_urlsafe(32))
+
 AI_COMMAND = os.environ.get("KB_AI_COMMAND", "").strip()
 AI_TIMEOUT_SECONDS = float(os.environ.get("KB_AI_TIMEOUT_SECONDS", "20"))
+AI_HTTP_API_KEY = os.environ.get("KB_AI_API_KEY", os.environ.get("OPENAI_API_KEY", "")).strip()
+AI_HTTP_ENDPOINT = os.environ.get(
+    "KB_AI_ENDPOINT",
+    "https://api.openai.com/v1/chat/completions",
+).strip()
+AI_HTTP_MODEL = os.environ.get("KB_AI_MODEL", "gpt-5.5").strip()
 
 TEXT_EXTENSIONS = {
     ".css",
@@ -60,6 +84,7 @@ TEXT_EXTENSIONS = {
 }
 SEARCH_ROOTS = ("raw", "wiki")
 UPLOAD_TARGETS = ("raw/inbox", "raw/work", "raw/study", "raw/clips", "raw/assets")
+ARCHIVE_TARGETS = ("raw/work", "raw/study", "raw/clips", "raw/assets")
 DELETE_ROOTS = UPLOAD_TARGETS + (
     "wiki/sources",
     "wiki/projects",
@@ -69,9 +94,21 @@ DELETE_ROOTS = UPLOAD_TARGETS + (
     "wiki/decisions",
     "wiki/reviews",
 )
-IGNORED_PARTS = {".git", ".trash", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
+SOURCE_ROOTS = ("wiki/sources",)
+IGNORED_PARTS = {
+    ".git",
+    ".trash",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "examples",
+}
+
 INDEX_LOCK = threading.Lock()
 INDEX_RUNTIME: dict[str, Any] = {"last_sync_monotonic": 0.0, "last_summary": None}
+SESSION_LOCK = threading.Lock()
+SESSIONS: dict[str, dict[str, Any]] = {}
 
 
 class ApiError(Exception):
@@ -123,7 +160,11 @@ def assert_under_any(path: Path, roots: tuple[str, ...], action: str) -> None:
 
 
 def is_ignored(path: Path) -> bool:
-    return any(part in IGNORED_PARTS for part in path.parts)
+    try:
+        parts = path.resolve().relative_to(REPO_ROOT).parts
+    except ValueError:
+        parts = path.parts
+    return any(part in IGNORED_PARTS for part in parts)
 
 
 def is_text_file(path: Path) -> bool:
@@ -149,14 +190,12 @@ def read_text(path: Path, limit: int = MAX_PREVIEW_BYTES) -> tuple[str, bool]:
 def file_meta(path: Path) -> FileMeta:
     rel = relative_path(path)
     stat = path.stat()
-    section = rel.split("/", 1)[0]
-    modified = dt.datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
     return FileMeta(
         path=rel,
         name=path.name,
-        section=section,
+        section=rel.split("/", 1)[0],
         size=stat.st_size,
-        modified=modified,
+        modified=dt.datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
         text=is_text_file(path),
     )
 
@@ -181,6 +220,15 @@ def iter_files(scope: str = "all") -> list[Path]:
             if path.is_file() and not is_ignored(path):
                 files.append(path)
     return sorted(files, key=lambda p: relative_path(p).lower())
+
+
+def count_example_files() -> int:
+    total = 0
+    for root_name in ("raw/examples", "wiki/examples"):
+        root = REPO_ROOT / root_name
+        if root.exists():
+            total += sum(1 for path in root.rglob("*") if path.is_file())
+    return total
 
 
 def find_matches(path: Path, query: str, max_lines: int = 3) -> list[dict[str, Any]]:
@@ -211,6 +259,7 @@ def sanitize_filename(name: str) -> str:
 
 
 def unique_destination(directory: Path, filename: str) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
     candidate = directory / filename
     if not candidate.exists():
         return candidate
@@ -299,14 +348,16 @@ def extract_title(path: str, text: str) -> str:
     for line in text.splitlines():
         line = line.strip()
         if line.startswith("#"):
-            return line.lstrip("#").strip()[:120]
+            title = line.lstrip("#").strip()
+            if title:
+                return title[:120]
     return Path(path).stem[:120]
 
 
 def summarize_locally(text: str) -> str:
     lines = [line.strip(" -\t") for line in text.splitlines() if line.strip()]
     if not lines:
-        return "这份材料暂无可预览文本，需要先人工确认文件内容。"
+        return "这份资料暂无可预览文本，需要先人工确认文件内容。"
     summary = " ".join(lines[:3])
     if len(summary) > 220:
         summary = summary[:217] + "..."
@@ -321,7 +372,7 @@ def infer_wiki_targets(path: str, text: str) -> list[str]:
         targets.append("wiki/topics/personal-knowledge-base-maintenance.md")
     if any(token in blob for token in ("llm", "agent", "mcp", "codex", "上下文", "ai")):
         targets.append("wiki/topics/llm-context-engineering.md")
-    if any(token in blob for token in ("ingest", "上传", "删除", "查询", "流程", "模板")):
+    if any(token in blob for token in ("ingest", "上传", "删除", "查询", "流程", "模板", "pipeline")):
         targets.append("wiki/methods/inbox-to-wiki-ingest.md")
     return list(dict.fromkeys(targets))[:5]
 
@@ -330,8 +381,28 @@ def source_page_name(path: str) -> str:
     return f"wiki/sources/{Path(path).stem}.md"
 
 
-def build_source_draft(path: str, text: str, material_type: str, title: str, summary: str) -> str:
+def markdown_list(items: list[str], fallback: str) -> list[str]:
+    if not items:
+        return [f"- {fallback}"]
+    return [f"- {item}" for item in items]
+
+
+def build_source_draft(
+    path: str,
+    text: str,
+    material_type: str,
+    title: str,
+    summary: str,
+    wiki_targets: list[str] | None = None,
+    actions: list[str] | None = None,
+    provider: str = "local-rules",
+) -> str:
     date = dt.date.today().isoformat()
+    target_lines = markdown_list(wiki_targets or [], "暂不提升到其他页面")
+    action_lines = markdown_list(
+        actions or [],
+        "人工复核摘要与关联页面，再决定是否提升到项目页、主题页或方法页。",
+    )
     return "\n".join(
         [
             f"# 来源：{title}",
@@ -340,25 +411,86 @@ def build_source_draft(path: str, text: str, material_type: str, title: str, sum
             "",
             f"- 标题：{title}",
             f"- 来源类型：{material_type}",
-            f"- 日期：{date}（记录日期）",
+            f"- 记录日期：{date}",
             f"- 原始路径：`{path}`",
+            f"- 处理来源：{provider}",
             "",
-            "## 简要摘要",
+            "## 摘要",
             "",
             summary,
             "",
             "## 关键点",
             "",
             "- 需要结合原文进一步确认关键结论。",
-            "- 需要判断是否只保留来源登记，还是提升到项目页或主题页。",
-            "- 需要在完成整理后补充实际关联页面。",
+            "- 需要判断是只保留来源登记，还是提升到项目页、主题页或方法页。",
+            "- 完成整理后补充实际关联页面与回链。",
             "",
-            "## 关联页面",
+            "## 建议关联",
             "",
-            "- 暂待整理",
+            *target_lines,
+            "",
+            "## 下一步",
+            "",
+            *action_lines,
             "",
         ]
     )
+
+
+def normalize_ai_suggestion(path: str, text: str, result: dict[str, Any], provider: str) -> dict[str, Any]:
+    material_type = str(result.get("material_type") or classify_material(path, text)).strip()
+    if material_type not in {"work", "study", "clip", "inbox"}:
+        material_type = "inbox"
+    title = str(result.get("title") or extract_title(path, text)).strip()[:120]
+    summary = str(result.get("summary") or summarize_locally(text)).strip()
+    suggested_archive = str(result.get("suggested_archive") or "").strip().replace("\\", "/")
+    if suggested_archive not in ("raw/inbox", *ARCHIVE_TARGETS):
+        suggested_archive = {
+            "work": "raw/work",
+            "study": "raw/study",
+            "clip": "raw/clips",
+            "inbox": "raw/inbox",
+        }[material_type]
+    wiki_targets = [
+        str(target).strip().replace("\\", "/")
+        for target in result.get("wiki_targets", infer_wiki_targets(path, text)) or []
+        if str(target).strip().replace("\\", "/").startswith("wiki/")
+    ][:5]
+    actions = [str(action).strip() for action in result.get("actions", []) or [] if str(action).strip()][:5]
+    source_page = str(result.get("source_page") or source_page_name(path)).strip().replace("\\", "/")
+    try:
+        source_path = safe_repo_path(source_page)
+        assert_under_any(source_path, SOURCE_ROOTS, "source page")
+    except ApiError:
+        source_page = source_page_name(path)
+    source_draft = str(result.get("source_draft") or "").strip()
+    if not source_draft:
+        source_draft = build_source_draft(
+            path,
+            text,
+            material_type,
+            title,
+            summary,
+            wiki_targets,
+            actions,
+            provider,
+        )
+    return {
+        "provider": provider,
+        "title": title,
+        "material_type": material_type,
+        "suggested_archive": suggested_archive,
+        "source_page": source_page,
+        "wiki_targets": wiki_targets,
+        "summary": summary,
+        "actions": actions
+        or [
+            "先保留原件不改写。",
+            "确认值得沉淀后创建同名 wiki/sources 来源页。",
+            "内容形成稳定判断后，再更新 1 个项目页和 1 个主题/方法页。",
+        ],
+        "source_draft": source_draft,
+    }
 
 
 def local_ai_suggestion(path: str, text: str) -> dict[str, Any]:
@@ -372,24 +504,43 @@ def local_ai_suggestion(path: str, text: str) -> dict[str, Any]:
         "inbox": "raw/inbox",
     }[material_type]
     targets = infer_wiki_targets(path, text)
-    return {
-        "provider": "local-rules",
-        "title": title,
-        "material_type": material_type,
-        "suggested_archive": suggested_archive,
-        "source_page": source_page_name(path),
-        "wiki_targets": targets,
-        "summary": summary,
-        "actions": [
-            "先保留原件不改写。",
-            "如确认值得沉淀，创建同名 wiki/sources 来源页。",
-            "如果内容已经形成稳定判断，再更新 1 个项目页和 1 个主题或方法页。",
-        ],
-        "source_draft": build_source_draft(path, text, material_type, title, summary),
-    }
+    return normalize_ai_suggestion(
+        path,
+        text,
+        {
+            "title": title,
+            "material_type": material_type,
+            "suggested_archive": suggested_archive,
+            "source_page": source_page_name(path),
+            "wiki_targets": targets,
+            "summary": summary,
+            "actions": [
+                "先保留原件不改写。",
+                "如确认值得沉淀，创建同名 wiki/sources 来源页。",
+                "如内容已经形成稳定判断，再更新 1 个项目页和 1 个主题或方法页。",
+            ],
+        },
+        "local-rules",
+    )
 
 
-def external_ai_suggestion(payload: dict[str, Any]) -> dict[str, Any] | None:
+def parse_json_object(text: str) -> dict[str, Any]:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    if not cleaned.startswith("{"):
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start >= 0 and end > start:
+            cleaned = cleaned[start : end + 1]
+    result = json.loads(cleaned)
+    if not isinstance(result, dict):
+        raise ValueError("AI JSON must be an object.")
+    return result
+
+
+def external_command_suggestion(payload: dict[str, Any]) -> dict[str, Any] | None:
     if not AI_COMMAND:
         return None
     completed = subprocess.run(
@@ -407,13 +558,105 @@ def external_ai_suggestion(payload: dict[str, Any]) -> dict[str, Any] | None:
         )
     output = completed.stdout.decode("utf-8", errors="replace").strip()
     try:
-        result = json.loads(output)
-    except json.JSONDecodeError as exc:
+        result = parse_json_object(output)
+    except (ValueError, json.JSONDecodeError) as exc:
         raise ApiError(HTTPStatus.BAD_GATEWAY, f"AI command did not return JSON: {exc}") from exc
-    if isinstance(result, dict):
-        result.setdefault("provider", "external-command")
-        return result
-    raise ApiError(HTTPStatus.BAD_GATEWAY, "AI command JSON must be an object.")
+    return normalize_ai_suggestion(
+        str(payload.get("path", "")),
+        str(payload.get("text", "")),
+        result,
+        "external-command",
+    )
+
+
+def extract_ai_content(response_json: dict[str, Any]) -> str:
+    if isinstance(response_json.get("output_text"), str):
+        return response_json["output_text"]
+    choices = response_json.get("choices")
+    if isinstance(choices, list) and choices:
+        message = choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
+        content = message.get("content", "")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "\n".join(
+                str(part.get("text", ""))
+                for part in content
+                if isinstance(part, dict) and part.get("text")
+            )
+    output = response_json.get("output")
+    if isinstance(output, list):
+        chunks: list[str] = []
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            for part in item.get("content", []) or []:
+                if isinstance(part, dict) and part.get("text"):
+                    chunks.append(str(part["text"]))
+        if chunks:
+            return "\n".join(chunks)
+    return ""
+
+
+def http_ai_suggestion(payload: dict[str, Any]) -> dict[str, Any] | None:
+    if not AI_HTTP_API_KEY:
+        return None
+    system_prompt = (
+        "你是个人知识库资料整理助手。只返回 JSON，不要 Markdown。"
+        "字段必须包括 title, material_type, suggested_archive, source_page, "
+        "wiki_targets, summary, actions。material_type 只能是 work/study/clip/inbox。"
+        "suggested_archive 只能是 raw/work, raw/study, raw/clips, raw/assets, raw/inbox。"
+    )
+    user_prompt = {
+        "path": payload.get("path", ""),
+        "text": str(payload.get("text", ""))[:MAX_SEARCH_BYTES],
+    }
+    request_payload = {
+        "model": AI_HTTP_MODEL,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(user_prompt, ensure_ascii=False)},
+        ],
+        "temperature": 0.2,
+    }
+    request = urllib.request.Request(
+        AI_HTTP_ENDPOINT,
+        data=json.dumps(request_payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {AI_HTTP_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=AI_TIMEOUT_SECONDS) as response:
+            response_data = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")[:500]
+        raise ApiError(HTTPStatus.BAD_GATEWAY, f"AI HTTP request failed ({exc.code}): {body}") from exc
+    except urllib.error.URLError as exc:
+        raise ApiError(HTTPStatus.BAD_GATEWAY, f"AI HTTP request failed: {exc.reason}") from exc
+
+    try:
+        response_json = json.loads(response_data)
+        content = extract_ai_content(response_json)
+        result = parse_json_object(content)
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise ApiError(HTTPStatus.BAD_GATEWAY, f"AI HTTP response did not contain valid JSON: {exc}") from exc
+    return normalize_ai_suggestion(
+        str(payload.get("path", "")),
+        str(payload.get("text", "")),
+        result,
+        "openai-compatible-http",
+    )
+
+
+def active_ai_provider() -> str:
+    if AI_COMMAND:
+        return "external-command"
+    if AI_HTTP_API_KEY:
+        return "openai-compatible-http"
+    return "local-rules"
 
 
 def suggest_for_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -425,9 +668,12 @@ def suggest_for_payload(payload: dict[str, Any]) -> dict[str, Any]:
         if file_path.exists() and file_path.is_file() and is_text_file(file_path):
             text, _ = read_text(file_path, MAX_SEARCH_BYTES)
     external_payload = {"path": path, "text": text[:MAX_SEARCH_BYTES]}
-    external = external_ai_suggestion(external_payload)
-    if external:
-        return external
+    command_result = external_command_suggestion(external_payload)
+    if command_result:
+        return command_result
+    http_result = http_ai_suggestion(external_payload)
+    if http_result:
+        return http_result
     return local_ai_suggestion(path or "unsaved-input.md", text)
 
 
@@ -534,8 +780,8 @@ def read_index_status_from_conn(conn: sqlite3.Connection) -> dict[str, Any]:
         """
         SELECT
             COUNT(*) AS indexed_files,
-            COALESCE(SUM(size), 0) AS total_bytes,
-            COALESCE(SUM(text), 0) AS text_files
+            COALESCE(SUM(text), 0) AS text_files,
+            COALESCE(SUM(size), 0) AS total_bytes
         FROM files
         """
     ).fetchone()
@@ -545,8 +791,8 @@ def read_index_status_from_conn(conn: sqlite3.Connection) -> dict[str, Any]:
         "indexed_files": int(totals["indexed_files"]),
         "text_files": int(totals["text_files"]),
         "total_bytes": int(totals["total_bytes"]),
-        "last_indexed_at": get_index_meta(conn, "last_indexed_at") or None,
-        "last_rebuild_at": get_index_meta(conn, "last_rebuild_at") or None,
+        "last_indexed_at": get_index_meta(conn, "last_indexed_at", None),
+        "last_rebuild_at": get_index_meta(conn, "last_rebuild_at", None),
         "last_sync_summary": INDEX_RUNTIME.get("last_summary"),
     }
 
@@ -614,19 +860,19 @@ def sync_index_unlocked(force: bool = False, rebuild: bool = False) -> dict[str,
             set_index_meta(conn, "last_rebuild_at", finished_at)
         conn.commit()
 
-        summary = {
-            "scanned": len(current_map),
-            "inserted": inserted,
-            "updated": updated,
-            "deleted": len(deleted_paths),
-            "unchanged": unchanged,
-            "duration_ms": int((time.perf_counter() - started_at) * 1000),
-            "finished_at": finished_at,
-            "rebuild": rebuild,
-        }
-        INDEX_RUNTIME["last_summary"] = summary
-        INDEX_RUNTIME["last_sync_monotonic"] = time.monotonic()
-        return summary
+    summary = {
+        "scanned": len(current_map),
+        "inserted": inserted,
+        "updated": updated,
+        "deleted": len(deleted_paths),
+        "unchanged": unchanged,
+        "duration_ms": int((time.perf_counter() - started_at) * 1000),
+        "finished_at": finished_at,
+        "rebuild": rebuild,
+    }
+    INDEX_RUNTIME["last_summary"] = summary
+    INDEX_RUNTIME["last_sync_monotonic"] = time.monotonic()
+    return summary
 
 
 def maybe_sync_index(force: bool = False) -> dict[str, Any]:
@@ -776,13 +1022,6 @@ def list_files(scope: str = "all", query: str = "") -> list[dict[str, Any]]:
 def dashboard_data_from_filesystem() -> dict[str, Any]:
     files = [file_meta(path) for path in iter_files("all")]
     total_bytes = sum(item.size for item in files)
-    summary = {
-        "total_files": len(files),
-        "text_files": sum(1 for item in files if item.text),
-        "raw_files": sum(1 for item in files if item.section == "raw"),
-        "wiki_files": sum(1 for item in files if item.section == "wiki"),
-        "total_bytes": total_bytes,
-    }
     area_map: dict[str, dict[str, Any]] = {}
     suffix_map: dict[str, int] = {}
     recent_rows = []
@@ -806,15 +1045,19 @@ def dashboard_data_from_filesystem() -> dict[str, Any]:
             }
         )
     recent_rows.sort(key=lambda item: item["modified"], reverse=True)
-    areas = sorted(area_map.values(), key=lambda item: (-item["files"], item["name"]))[:8]
-    suffixes = [
-        {"suffix": suffix, "files": count}
-        for suffix, count in sorted(suffix_map.items(), key=lambda item: (-item[1], item[0]))[:8]
-    ]
     return {
-        "summary": summary,
-        "areas": areas,
-        "suffixes": suffixes,
+        "summary": {
+            "total_files": len(files),
+            "text_files": sum(1 for item in files if item.text),
+            "raw_files": sum(1 for item in files if item.section == "raw"),
+            "wiki_files": sum(1 for item in files if item.section == "wiki"),
+            "total_bytes": total_bytes,
+        },
+        "areas": sorted(area_map.values(), key=lambda item: (-item["files"], item["name"]))[:8],
+        "suffixes": [
+            {"suffix": suffix, "files": count}
+            for suffix, count in sorted(suffix_map.items(), key=lambda item: (-item[1], item[0]))[:8]
+        ],
         "recent_files": recent_rows[:8],
         "index_status": {
             "exists": False,
@@ -858,10 +1101,7 @@ def dashboard_data() -> dict[str, Any]:
                 ).fetchall()
             ]
             suffixes = [
-                {
-                    "suffix": row["suffix"] or "[none]",
-                    "files": int(row["files"]),
-                }
+                {"suffix": row["suffix"] or "[none]", "files": int(row["files"])}
                 for row in conn.execute(
                     """
                     SELECT suffix, COUNT(*) AS files
@@ -907,22 +1147,180 @@ def dashboard_data() -> dict[str, Any]:
         return dashboard_data_from_filesystem()
 
 
+def pipeline_status() -> dict[str, Any]:
+    maybe_sync_index()
+    inbox_items = list_files("inbox")
+    raw_files = iter_files("raw")
+    gaps = []
+    for path in raw_files:
+        rel = relative_path(path)
+        source_rel = source_page_name(rel)
+        if not (REPO_ROOT / source_rel).exists():
+            meta = file_meta(path).__dict__
+            meta["source_page"] = source_rel
+            meta["area"] = derive_area(rel)
+            gaps.append(meta)
+    return {
+        "inbox_count": len(inbox_items),
+        "source_gaps_count": len(gaps),
+        "source_gaps": gaps[:20],
+        "examples_hidden": count_example_files(),
+        "upload_targets": list(UPLOAD_TARGETS),
+        "archive_targets": list(ARCHIVE_TARGETS),
+        "ai_provider": active_ai_provider(),
+        "auth_required": AUTH_REQUIRED,
+    }
+
+
+def process_material(
+    rel_path: str,
+    create_source: bool = True,
+    archive: bool = True,
+    overwrite_source: bool = False,
+) -> dict[str, Any]:
+    path = safe_repo_path(rel_path)
+    if not path.exists() or not path.is_file():
+        raise ApiError(HTTPStatus.NOT_FOUND, "File does not exist.")
+    assert_under_any(path, UPLOAD_TARGETS, "process")
+    if is_ignored(path):
+        raise ApiError(HTTPStatus.FORBIDDEN, "Ignored/example files are not processed.")
+
+    original_rel = relative_path(path)
+    text = ""
+    if is_text_file(path):
+        text, _ = read_text(path, MAX_SEARCH_BYTES)
+    suggestion = suggest_for_payload({"path": original_rel, "text": text})
+
+    actions: list[dict[str, Any]] = []
+    final_path = path
+    final_rel = original_rel
+    target_dir = str(suggestion.get("suggested_archive") or "raw/inbox").replace("\\", "/")
+    if target_dir not in ("raw/inbox", *ARCHIVE_TARGETS):
+        target_dir = "raw/inbox"
+    if archive and target_dir in ARCHIVE_TARGETS:
+        target_root = safe_repo_path(target_dir)
+        assert_under_any(target_root, ARCHIVE_TARGETS, "archive")
+        if not is_within(path, target_root):
+            final_path = unique_destination(target_root, path.name)
+            shutil.move(str(path), str(final_path))
+            final_rel = relative_path(final_path)
+            actions.append({"type": "archive", "from": original_rel, "to": final_rel})
+        else:
+            actions.append({"type": "archive_skipped", "reason": "already_in_target", "path": final_rel})
+    elif archive:
+        actions.append({"type": "archive_skipped", "reason": "kept_in_inbox", "path": final_rel})
+
+    source_rel = str(suggestion.get("source_page") or source_page_name(original_rel)).replace("\\", "/")
+    try:
+        source_path = safe_repo_path(source_rel)
+        assert_under_any(source_path, SOURCE_ROOTS, "create source")
+    except ApiError:
+        source_rel = source_page_name(original_rel)
+        source_path = safe_repo_path(source_rel)
+    if create_source:
+        if source_path.exists() and not overwrite_source:
+            actions.append({"type": "source_exists", "path": source_rel})
+        else:
+            source_path.parent.mkdir(parents=True, exist_ok=True)
+            source_text = build_source_draft(
+                final_rel,
+                text,
+                str(suggestion.get("material_type") or "inbox"),
+                str(suggestion.get("title") or extract_title(final_rel, text)),
+                str(suggestion.get("summary") or summarize_locally(text)),
+                list(suggestion.get("wiki_targets") or []),
+                list(suggestion.get("actions") or []),
+                str(suggestion.get("provider") or active_ai_provider()),
+            )
+            source_path.write_text(source_text, encoding="utf-8")
+            actions.append({"type": "source_created", "path": source_rel})
+    else:
+        actions.append({"type": "source_skipped", "path": source_rel})
+
+    index_summary = maybe_sync_index(force=True)
+    return {
+        "path": original_rel,
+        "final_path": final_rel,
+        "source_page": source_rel,
+        "suggestion": suggestion,
+        "actions": actions,
+        "index": index_summary,
+    }
+
+
+def prune_sessions_unlocked(now: float | None = None) -> None:
+    now = time.time() if now is None else now
+    expired = [token for token, item in SESSIONS.items() if float(item["expires_at"]) <= now]
+    for token in expired:
+        SESSIONS.pop(token, None)
+
+
+def create_session(username: str) -> str:
+    token = secrets.token_urlsafe(32)
+    with SESSION_LOCK:
+        prune_sessions_unlocked()
+        SESSIONS[token] = {
+            "username": username,
+            "created_at": time.time(),
+            "expires_at": time.time() + SESSION_TTL_SECONDS,
+        }
+    return token
+
+
+def session_for_token(token: str) -> dict[str, Any] | None:
+    if not token:
+        return None
+    with SESSION_LOCK:
+        prune_sessions_unlocked()
+        session = SESSIONS.get(token)
+        if not session:
+            return None
+        session["expires_at"] = time.time() + SESSION_TTL_SECONDS
+        return dict(session)
+
+
+def drop_session(token: str) -> None:
+    with SESSION_LOCK:
+        SESSIONS.pop(token, None)
+
+
+def auth_status(authenticated: bool, username: str | None = None) -> dict[str, Any]:
+    return {
+        "required": AUTH_REQUIRED,
+        "configured": bool(AUTH_PASSWORD) or not AUTH_REQUIRED,
+        "authenticated": authenticated or not AUTH_REQUIRED,
+        "username": username if authenticated else (AUTH_USERNAME if not AUTH_REQUIRED else None),
+        "session_ttl_seconds": SESSION_TTL_SECONDS,
+    }
+
+
 class KnowledgeBaseHandler(BaseHTTPRequestHandler):
-    server_version = "PersonalKnowledgeBaseWeb/0.2"
+    server_version = "PersonalKnowledgeBaseWeb/0.3"
 
     def log_message(self, fmt: str, *args: Any) -> None:
         sys.stderr.write("%s - - [%s] %s\n" % (self.address_string(), self.log_date_time_string(), fmt % args))
 
-    def send_json(self, status: HTTPStatus, payload: dict[str, Any] | list[Any]) -> None:
+    def send_json(
+        self,
+        status: HTTPStatus,
+        payload: dict[str, Any] | list[Any],
+        *,
+        no_store: bool = False,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
         data = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
+        if no_store:
+            self.send_header("Cache-Control", "no-store")
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(data)
 
     def send_error_json(self, error: ApiError) -> None:
-        self.send_json(error.status, {"error": error.message})
+        self.send_json(error.status, {"error": error.message}, no_store=error.status == HTTPStatus.UNAUTHORIZED)
 
     def send_internal_error(self, error: Exception) -> None:
         self.log_message("Unhandled error: %s", error)
@@ -938,13 +1336,67 @@ class KnowledgeBaseHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         return parsed.path, urllib.parse.parse_qs(parsed.query)
 
+    def cookie_token(self) -> str:
+        cookie_header = self.headers.get("Cookie", "")
+        if not cookie_header:
+            return ""
+        cookie = SimpleCookie()
+        cookie.load(cookie_header)
+        morsel = cookie.get(SESSION_COOKIE_NAME)
+        return morsel.value if morsel else ""
+
+    def current_session(self) -> dict[str, Any] | None:
+        return session_for_token(self.cookie_token())
+
+    def is_https_request(self) -> bool:
+        proto = self.headers.get("X-Forwarded-Proto", "").split(",", 1)[0].strip().lower()
+        return proto == "https"
+
+    def session_cookie(self, token: str, max_age: int = SESSION_TTL_SECONDS) -> str:
+        cookie = SimpleCookie()
+        cookie[SESSION_COOKIE_NAME] = token
+        cookie[SESSION_COOKIE_NAME]["path"] = "/"
+        cookie[SESSION_COOKIE_NAME]["max-age"] = str(max_age)
+        cookie[SESSION_COOKIE_NAME]["httponly"] = True
+        cookie[SESSION_COOKIE_NAME]["samesite"] = "Lax"
+        if self.is_https_request():
+            cookie[SESSION_COOKIE_NAME]["secure"] = True
+        return cookie.output(header="").strip()
+
+    def clear_session_cookie(self) -> str:
+        parts = [f"{SESSION_COOKIE_NAME}=", "Path=/", "Max-Age=0", "HttpOnly", "SameSite=Lax"]
+        if self.is_https_request():
+            parts.append("Secure")
+        return "; ".join(parts)
+
+    def is_public_api(self, path: str, method: str) -> bool:
+        return (method == "GET" and path == "/api/auth/status") or (
+            method == "POST" and path in {"/api/auth/login", "/api/auth/logout"}
+        )
+
+    def require_auth(self, path: str, method: str) -> dict[str, Any] | None:
+        if not path.startswith("/api/") or self.is_public_api(path, method) or not AUTH_REQUIRED:
+            return self.current_session()
+        session = self.current_session()
+        if not session:
+            raise ApiError(HTTPStatus.UNAUTHORIZED, "Login required.")
+        return session
+
     def do_GET(self) -> None:
         try:
             path, query = self.parsed_query()
+            self.require_auth(path, "GET")
             if path in ("", "/"):
                 self.serve_static("index.html")
             elif path.startswith("/static/"):
                 self.serve_static(path.removeprefix("/static/"))
+            elif path == "/api/auth/status":
+                session = self.current_session()
+                self.send_json(
+                    HTTPStatus.OK,
+                    auth_status(bool(session), session.get("username") if session else None),
+                    no_store=True,
+                )
             elif path == "/api/health":
                 index_status = get_index_status()
                 self.send_json(
@@ -952,7 +1404,10 @@ class KnowledgeBaseHandler(BaseHTTPRequestHandler):
                     {
                         "status": "ok",
                         "repo_root": str(REPO_ROOT),
-                        "ai_provider": "external-command" if AI_COMMAND else "local-rules",
+                        "ai_provider": active_ai_provider(),
+                        "ai_model": AI_HTTP_MODEL if AI_HTTP_API_KEY else None,
+                        "ai_endpoint": AI_HTTP_ENDPOINT if AI_HTTP_API_KEY else None,
+                        "auth_required": AUTH_REQUIRED,
                         "files": int(index_status["indexed_files"]),
                         "index": index_status,
                     },
@@ -961,6 +1416,8 @@ class KnowledgeBaseHandler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.OK, dashboard_data())
             elif path == "/api/index/status":
                 self.send_json(HTTPStatus.OK, get_index_status())
+            elif path == "/api/pipeline/status":
+                self.send_json(HTTPStatus.OK, pipeline_status())
             elif path in ("/api/files", "/api/search"):
                 scope = query.get("scope", ["all"])[0]
                 q = query.get("q", [""])[0]
@@ -990,6 +1447,7 @@ class KnowledgeBaseHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         try:
             path, _ = self.parsed_query()
+            self.require_auth(path, "HEAD")
             if path in ("", "/"):
                 self.serve_static("index.html", head_only=True)
             elif path.startswith("/static/"):
@@ -1009,14 +1467,54 @@ class KnowledgeBaseHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         try:
             path, _ = self.parsed_query()
+            self.require_auth(path, "POST")
             body = self.read_body()
-            if path == "/api/upload":
+            if path == "/api/auth/login":
+                payload = json.loads(body.decode("utf-8")) if body else {}
+                if AUTH_REQUIRED and not AUTH_PASSWORD:
+                    raise ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "Authentication is required but not configured.")
+                username = str(payload.get("username", ""))
+                password = str(payload.get("password", ""))
+                valid = (not AUTH_REQUIRED) or (
+                    hmac.compare_digest(username, AUTH_USERNAME)
+                    and hmac.compare_digest(password, AUTH_PASSWORD)
+                )
+                if not valid:
+                    raise ApiError(HTTPStatus.UNAUTHORIZED, "Invalid username or password.")
+                token = create_session(AUTH_USERNAME)
+                self.send_json(
+                    HTTPStatus.OK,
+                    auth_status(True, AUTH_USERNAME),
+                    no_store=True,
+                    extra_headers={"Set-Cookie": self.session_cookie(token)},
+                )
+            elif path == "/api/auth/logout":
+                token = self.cookie_token()
+                if token:
+                    drop_session(token)
+                self.send_json(
+                    HTTPStatus.OK,
+                    {"ok": True},
+                    no_store=True,
+                    extra_headers={"Set-Cookie": self.clear_session_cookie()},
+                )
+            elif path == "/api/upload":
                 items = save_upload(self.headers, body)
                 maybe_sync_index(force=True)
                 self.send_json(HTTPStatus.CREATED, {"items": items})
             elif path == "/api/ai/suggest":
                 payload = json.loads(body.decode("utf-8")) if body else {}
                 self.send_json(HTTPStatus.OK, suggest_for_payload(payload))
+            elif path == "/api/pipeline/process":
+                payload = json.loads(body.decode("utf-8")) if body else {}
+                rel = str(payload.get("path", ""))
+                result = process_material(
+                    rel,
+                    create_source=bool(payload.get("create_source", True)),
+                    archive=bool(payload.get("archive", True)),
+                    overwrite_source=bool(payload.get("overwrite_source", False)),
+                )
+                self.send_json(HTTPStatus.OK, result)
             elif path == "/api/index/rebuild":
                 self.send_json(HTTPStatus.OK, rebuild_index())
             else:
@@ -1031,6 +1529,7 @@ class KnowledgeBaseHandler(BaseHTTPRequestHandler):
     def do_DELETE(self) -> None:
         try:
             path, query = self.parsed_query()
+            self.require_auth(path, "DELETE")
             if path != "/api/file":
                 raise ApiError(HTTPStatus.NOT_FOUND, "Not found.")
             rel = query.get("path", [""])[0]
@@ -1069,7 +1568,8 @@ def main() -> None:
     print(f"Personal knowledge base web UI: http://{host}:{port}")
     print(f"Repository root: {REPO_ROOT}")
     print(f"Index database: {INDEX_DB_PATH}")
-    print(f"AI provider: {'external-command' if AI_COMMAND else 'local-rules'}")
+    print(f"AI provider: {active_ai_provider()}")
+    print(f"Authentication required: {AUTH_REQUIRED}")
     server.serve_forever()
 
 

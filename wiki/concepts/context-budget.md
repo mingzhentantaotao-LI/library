@@ -16,4 +16,4 @@
 
 ## 来源
 
-- [来源：长周期助手的上下文工程学习笔记（样本）](../sources/2026-04-20-sample-study-context-engineering-notes.md)
+初始样例资料已归档到 `wiki/examples/`，当前概念页保留稳定定义。

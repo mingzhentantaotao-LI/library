@@ -6,9 +6,9 @@
 
 ## 当前边界
 
-- 只做 Markdown 知识库。
-- 不做前端。
-- 不做数据库。
+- 保持 `raw/ + wiki/` 文件系统为事实来源。
+- Web UI 只作为轻量操作层，不替代 Markdown 结构。
+- SQLite 只作为可重建索引，不作为主数据库。
 - 不做复杂 RAG 平台。
 - `raw/` 保存原始资料，`wiki/` 保存整理结果。
 
@@ -30,9 +30,8 @@
 
 ## 当前来源
 
-- [来源：个人知识库 V1 周记（样本）](../sources/2026-04-22-sample-work-agent-kb-weekly-note.md)
-- [来源：长周期助手的上下文工程学习笔记（样本）](../sources/2026-04-20-sample-study-context-engineering-notes.md)
-- [来源：渐进式摘要法收藏摘录（样本）](../sources/2026-04-18-sample-clip-progressive-summarization.md)
 - [来源：持久化中间层与持久 wiki 学习笔记](../sources/2026-04-23-study-persistent-wiki-middle-layer-notes.md)
 - [来源：AI 应用体系、Agent、MCP 与 Codex 学习笔记](../sources/2026-04-23-study-ai-agent-mcp-codex-notes.md)
 - [来源：个人知识库项目 V1 周复盘](../sources/2026-04-23-work-personal-knowledge-base-v1-weekly-review.md)
+
+初始样例资料已移入 `raw/examples/` 与 `wiki/examples/`，不再作为当前项目来源。

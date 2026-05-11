@@ -5,7 +5,7 @@
 - 标题：Clipping: Progressive Summarization for Personal Knowledge
 - 来源类型：收藏摘录（保存的 HTML）
 - 日期：2026-04-18
-- 原始路径：[raw/inbox/2026-04-18-sample-clip-progressive-summarization.html](../../raw/inbox/2026-04-18-sample-clip-progressive-summarization.html)
+- 原始路径：[raw/examples/2026-04-18-sample-clip-progressive-summarization.html](../../../raw/examples/2026-04-18-sample-clip-progressive-summarization.html)
 
 ## 简要摘要
 
@@ -20,8 +20,8 @@
 
 ## 关联主题
 
-- [个人知识库维护](../topics/personal-knowledge-base-maintenance.md)
+- [个人知识库维护](../../topics/personal-knowledge-base-maintenance.md)
 
 ## 关联项目
 
-- [Personal Knowledge Base V1](../projects/personal-knowledge-base-v1.md)
+- [Personal Knowledge Base V1](../../projects/personal-knowledge-base-v1.md)

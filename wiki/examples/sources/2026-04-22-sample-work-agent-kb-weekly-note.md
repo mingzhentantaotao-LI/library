@@ -5,7 +5,7 @@
 - 标题：Weekly Note: Personal Knowledge Base V1
 - 来源类型：工作笔记
 - 日期：2026-04-22
-- 原始路径：[raw/inbox/2026-04-22-sample-work-agent-kb-weekly-note.md](../../raw/inbox/2026-04-22-sample-work-agent-kb-weekly-note.md)
+- 原始路径：[raw/examples/2026-04-22-sample-work-agent-kb-weekly-note.md](../../../raw/examples/2026-04-22-sample-work-agent-kb-weekly-note.md)
 
 ## 简要摘要
 
@@ -21,8 +21,8 @@
 
 ## 关联主题
 
-- [个人知识库维护](../topics/personal-knowledge-base-maintenance.md)
+- [个人知识库维护](../../topics/personal-knowledge-base-maintenance.md)
 
 ## 关联项目
 
-- [Personal Knowledge Base V1](../projects/personal-knowledge-base-v1.md)
+- [Personal Knowledge Base V1](../../projects/personal-knowledge-base-v1.md)
